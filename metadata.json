@@ -1,0 +1,6 @@
+{
+  "name": "ClarifyAll – AI Utilities & Productivity Platform",
+  "description": "Free online AI utilities, PDF tools, image compressors, writing assistants, and productivity calculators. AI. Made Clear.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

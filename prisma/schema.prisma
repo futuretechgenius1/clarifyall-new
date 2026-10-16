@@ -1,0 +1,188 @@
+// Prisma schema for ClarifyAll.com
+// Database: MySQL 8 (utf8mb4, UTC timestamps, foreign keys and indexes)
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  EDITOR
+  ANALYST
+}
+
+enum Status {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String?      @map("password_hash")
+  role         Role         @default(EDITOR)
+  status       String       @default("ACTIVE")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  articles     Article[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Category {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  description    String   @db.Text
+  icon           String
+  seoTitle       String?  @map("seo_title")
+  seoDescription String?  @map("seo_description")
+  status         Status   @default(PUBLISHED)
+  tools          Tool[]
+
+  @@map("categories")
+}
+
+model Tool {
+  id             String      @id @default(cuid())
+  categoryId     String      @map("category_id")
+  category       Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name           String
+  slug           String      @unique
+  description    String      @db.Text
+  icon           String
+  seoTitle       String?     @map("seo_title")
+  seoDescription String?     @map("seo_description")
+  introContent   String      @db.Text @map("intro_content")
+  howToContent   String      @db.Text @map("how_to_content")
+  faqJson        String?     @db.Text @map("faq_json")
+  relatedTools   String?     @db.Text @map("related_tools")
+  status         Status      @default(PUBLISHED)
+  isFeatured     Boolean     @default(false) @map("is_featured")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  toolUsages     ToolUsage[]
+
+  @@index([categoryId])
+  @@index([slug])
+  @@map("tools")
+}
+
+model Article {
+  id             String    @id @default(cuid())
+  authorId       String?   @map("author_id")
+  author         User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  title          String
+  slug           String    @unique
+  excerpt        String    @db.Text
+  body           String    @db.MediumText
+  featuredImage  String?   @map("featured_image")
+  seoTitle       String?   @map("seo_title")
+  seoDescription String?   @map("seo_description")
+  canonicalUrl   String?   @map("canonical_url")
+  type           String    @default("guide") // "guide", "blog", "prompt"
+  status         Status    @default(PUBLISHED)
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@index([type])
+  @@map("articles")
+}
+
+model AiToolDirectory {
+  id             String    @id @default(cuid())
+  name           String
+  slug           String    @unique
+  vendorUrl      String    @map("vendor_url")
+  description    String    @db.Text
+  categories     String    // Comma-separated or JSON array
+  pricingModel   String    @map("pricing_model") // Free, Freemium, Paid
+  features       String    @db.Text
+  limitations    String?   @db.Text
+  reviewContent  String    @db.Text @map("review_content")
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  status         Status    @default(PUBLISHED)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@map("ai_tool_directory")
+}
+
+model ToolUsage {
+  id                   String   @id @default(cuid())
+  userId               String?  @map("user_id")
+  toolId               String   @map("tool_id")
+  tool                 Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  anonymousSessionHash String?  @map("anonymous_session_hash")
+  operation            String
+  status               String   // "SUCCESS", "ERROR"
+  processingDurationMs Int      @map("processing_duration_ms")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@index([toolId])
+  @@index([createdAt])
+  @@map("tool_usage")
+}
+
+model AiUsage {
+  id            String   @id @default(cuid())
+  userId        String?  @map("user_id")
+  provider      String   // "gemini", "groq"
+  model         String   // "gemini-3.8-flash"
+  operation     String   // "summarize", "email", "bullet", "prompt"
+  inputTokens   Int?     @map("input_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  estimatedCost Float?   @map("estimated_cost")
+  status        String   // "SUCCESS", "ERROR"
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("ai_usage")
+}
+
+model SiteSetting {
+  id           String   @id @default(cuid())
+  settingKey   String   @unique @map("setting_key")
+  settingValue String   @db.Text @map("setting_value")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
+model AdSlot {
+  id            String   @id @default(cuid())
+  slotKey       String   @unique @map("slot_key")
+  placement     String
+  enabled       Boolean  @default(false)
+  configuration String?  @db.Text
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("ad_slots")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  details   String?  @db.Text
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("audit_logs")
+}
